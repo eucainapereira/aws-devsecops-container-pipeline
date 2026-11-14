@@ -1,0 +1,28 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Relatorios de Seguranca Locais
+zap-report.*
+trivy-results.*
+semgrep-results.*
+gitleaks-report.*
+
+# Ambientes e Sistema Operacional
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

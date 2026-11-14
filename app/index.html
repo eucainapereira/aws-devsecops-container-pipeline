@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AWS DevSecOps Container Pipeline - Portfólio de Engenharia DevSecOps e Arquitetura Cloud AWS">
+  <title>AWS DevSecOps Container Pipeline | Security Dashboard</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <span class="shield-icon" aria-hidden="true">&#128737;</span>
+        <div>
+          <h1>AWS DevSecOps Container Pipeline</h1>
+          <p class="subtitle">Automated Cloud Provisioning &bull; Hardened Alpine Container &bull; Continuous Security Gates</p>
+        </div>
+      </div>
+      <div class="status-badges">
+        <span class="badge badge-success" id="pipeline-status-badge">
+          <span class="dot"></span> Pipeline: PASSING
+        </span>
+        <span class="badge badge-info">Region: us-east-1</span>
+        <span class="badge badge-neutral">Runtime: nginx:alpine (non-root:8080)</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- Hero / Overview KPI Cards -->
+    <section class="kpi-grid" aria-label="Indicadores de Segurança">
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Quality Gates Ativos</span>
+          <span class="kpi-tag tag-green">100% Enforced</span>
+        </div>
+        <div class="kpi-value">4 / 4</div>
+        <p class="kpi-desc">Gitleaks, Semgrep, Trivy (IaC + Image) e OWASP ZAP DAST bloqueiam falhas HIGH/CRITICAL.</p>
+      </article>
+
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Superfície SSH Exposta</span>
+          <span class="kpi-tag tag-green">Zero-Trust</span>
+        </div>
+        <div class="kpi-value">0 Portas</div>
+        <p class="kpi-desc">Porta 22 fechada. Deploy remoto executado exclusivamente via AWS Systems Manager (SSM).</p>
+      </article>
+
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">Privilégio do Container</span>
+          <span class="kpi-tag tag-green">Hardened</span>
+        </div>
+        <div class="kpi-value">Non-Root</div>
+        <p class="kpi-desc">Processo Nginx executando com usuário sem privilégios na porta 8080 + HEALTHCHECK nativo.</p>
+      </article>
+
+      <article class="kpi-card">
+        <div class="kpi-header">
+          <span class="kpi-label">HTTP Security Headers</span>
+          <span class="kpi-tag tag-green" id="headers-score-tag">Verificando...</span>
+        </div>
+        <div class="kpi-value" id="headers-score-value">-- / 6</div>
+        <p class="kpi-desc">Inspeção em tempo real dos cabeçalhos de segurança devolvidos pelo Nginx Alpine.</p>
+      </article>
+    </section>
+
+    <!-- Pipeline Stages Section -->
+    <section class="panel" aria-labelledby="pipeline-heading">
+      <div class="panel-header">
+        <div>
+          <h2 id="pipeline-heading">Fluxo do Pipeline DevSecOps (Shift-Left a Post-Deploy)</h2>
+          <p>Clique em qualquer estágio abaixo para inspecionar os critérios de bloqueio (Quality Gate) e comandos executados.</p>
+        </div>
+        <span class="schedule-pill">&#128337; Cron Semanal: Seg 03:00 UTC</span>
+      </div>
+
+      <div class="pipeline-track" role="tablist" aria-label="Estágios do Pipeline">
+        <button class="stage-card active" role="tab" aria-selected="true" data-stage="gitleaks">
+          <span class="stage-step">Estágio 01</span>
+          <h3>Gitleaks</h3>
+          <p>Secrets Detection</p>
+          <span class="stage-status">PASS</span>
+        </button>
+
+        <button class="stage-card" role="tab" aria-selected="false" data-stage="semgrep">
+          <span class="stage-step">Estágio 02</span>
+          <h3>Semgrep</h3>
+          <p>SAST Analysis</p>
+          <span class="stage-status">PASS</span>
+        </button>
+
+        <button class="stage-card" role="tab" aria-selected="false" data-stage="trivy">
+          <span class="stage-step">Estágio 03</span>
+          <h3>Trivy (All-in-One)</h3>
+          <p>IaC &amp; Container Image</p>
+          <span class="stage-status">PASS</span>
+        </button>
+
+        <button class="stage-card" role="tab" aria-selected="false" data-stage="deploy">
+          <span class="stage-step">Estágio 04</span>
+          <h3>ECR + AWS SSM</h3>
+          <p>Zero-SSH Deployment</p>
+          <span class="stage-status">DEPLOYED</span>
+        </button>
+
+        <button class="stage-card" role="tab" aria-selected="false" data-stage="zap">
+          <span class="stage-step">Estágio 05</span>
+          <h3>OWASP ZAP</h3>
+          <p>Post-Deploy DAST</p>
+          <span class="stage-status">PASS</span>
+        </button>
+      </div>
+
+      <div class="stage-detail" id="stage-detail-box" aria-live="polite">
+        <div class="stage-detail-header">
+          <h3 id="detail-title">Estágio 01: Gitleaks — Detecção de Segredos no Histórico Git</h3>
+          <span class="gate-badge" id="detail-gate">Quality Gate: Exit Code != 0 em qualquer credencial exposta</span>
+        </div>
+        <p id="detail-description">
+          Varre todos os commits e branches em busca de chaves AWS, tokens de API, chaves privadas e credenciais hardcoded antes de qualquer etapa de build.
+        </p>
+        <pre class="code-block"><code id="detail-command">gitleaks detect --source . --verbose --redact --exit-code 1</code></pre>
+      </div>
+    </section>
+
+    <!-- Two-Column Layout: Live Headers Inspector & Cloud IaC Hardening -->
+    <div class="two-col-grid">
+      <!-- Live HTTP Security Headers Inspector -->
+      <section class="panel" aria-labelledby="headers-heading">
+        <div class="panel-header">
+          <div>
+            <h2 id="headers-heading">Validador de Cabeçalhos HTTP (Live DAST Check)</h2>
+            <p>Leitura real via <code>HEAD</code> request na instância atual para confirmar o hardening do <code>nginx.conf</code>.</p>
+          </div>
+          <button type="button" class="btn-refresh" id="refresh-headers-btn">Revalidar Agora</button>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="security-table">
+            <thead>
+              <tr>
+                <th>Cabeçalho HTTP</th>
+                <th>Status</th>
+                <th>Valor Detectado / Esperado</th>
+              </tr>
+            </thead>
+            <tbody id="headers-table-body">
+              <tr>
+                <td><code>X-Frame-Options</code></td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td><code>DENY</code></td>
+              </tr>
+              <tr>
+                <td><code>X-Content-Type-Options</code></td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td><code>nosniff</code></td>
+              </tr>
+              <tr>
+                <td><code>Referrer-Policy</code></td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td><code>strict-origin-when-cross-origin</code></td>
+              </tr>
+              <tr>
+                <td><code>Content-Security-Policy</code></td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td><code>default-src 'self'; ...</code></td>
+              </tr>
+              <tr>
+                <td><code>Permissions-Policy</code></td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td><code>camera=(), microphone=(), geolocation=()...</code></td>
+              </tr>
+              <tr>
+                <td><code>Server</code> (Tokens Off)</td>
+                <td><span class="status-pill status-checking">Verificando</span></td>
+                <td>Sem versão exposta (<code>server_tokens off</code>)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Cloud & Container Security Controls -->
+      <section class="panel" aria-labelledby="controls-heading">
+        <div class="panel-header">
+          <div>
+            <h2 id="controls-heading">Controles de Arquitetura AWS &amp; Container</h2>
+            <p>Especificações implementadas via Terraform e Dockerfile para conformidade CIS/AWS Foundational Security.</p>
+          </div>
+        </div>
+
+        <ul class="controls-list">
+          <li>
+            <span class="control-icon">&#9989;</span>
+            <div>
+              <strong>EC2 IMDSv2 Obrigatório (<code>http_tokens = "required"</code>)</strong>
+              <p>Mitiga ataques de SSRF que tentam roubar credenciais temporárias da IAM Role via endpoint <code>169.254.169.254</code>.</p>
+            </div>
+          </li>
+          <li>
+            <span class="control-icon">&#9989;</span>
+            <div>
+              <strong>Volume EBS Raiz Criptografado (GP3)</strong>
+              <p>Proteção de dados em repouso ativada por padrão no provisionamento da instância Amazon Linux 2023 (<code>t3.micro</code>).</p>
+            </div>
+          </li>
+          <li>
+            <span class="control-icon">&#9989;</span>
+            <div>
+              <strong>Security Group Restritivo (Sem Porta 22 / SSH)</strong>
+              <p>Apenas tráfego HTTP (80/TCP) permitido na entrada. Gerenciamento e deploy feitos via agente AWS SSM e HTTPS (443).</p>
+            </div>
+          </li>
+          <li>
+            <span class="control-icon">&#9989;</span>
+            <div>
+              <strong>Amazon ECR com Scan on Push &amp; Lifecycle Policy</strong>
+              <p>Criptografia AES256, varredura automática de imagens e retenção apenas das últimas 3 imagens para otimização de custos (Free Tier).</p>
+            </div>
+          </li>
+          <li>
+            <span class="control-icon">&#9989;</span>
+            <div>
+              <strong>Container Nginx Alpine Non-Root (Porta 8080)</strong>
+              <p>Imagem enxuta com versão pinada, atualização de pacotes de segurança no build e execução sem privilégios de root.</p>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <span>AWS DevSecOps Container Pipeline &mdash; Portfolio Engineering Project</span>
+      <span>Stack: Terraform &bull; Docker Alpine &bull; GitHub Actions &bull; Gitleaks &bull; Semgrep &bull; Trivy &bull; OWASP ZAP</span>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>

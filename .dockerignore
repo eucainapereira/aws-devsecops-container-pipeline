@@ -1,0 +1,26 @@
+# Controle de versao e CI/CD
+.git
+.gitignore
+.github
+
+# Infraestrutura como Codigo e estado local
+terraform/
+*.tf
+*.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Documentacao e relatorios de seguranca
+README.md
+*.md
+*.sarif
+*.json
+*.html
+!app/*.html
+
+# Arquivos temporarios e de IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
