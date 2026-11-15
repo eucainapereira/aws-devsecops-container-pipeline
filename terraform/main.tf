@@ -2,10 +2,6 @@
 # 1. REDE E SEGURANCA (VPC Dedicada + Security Group Zero-SSH)
 # =============================================================================
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
@@ -38,7 +34,7 @@ resource "aws_internet_gateway" "igw" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidr
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = "${var.aws_region}a"
   map_public_ip_on_launch = false
 
   tags = {
@@ -219,7 +215,12 @@ data "aws_ami" "amazon_linux_2023" {
 
   filter {
     name   = "name"
-    values = ["al2023-ami-2023.*-kernel-6.1-x86_64"]
+    values = ["al2023-ami-2023*-x86_64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
   }
 
   filter {

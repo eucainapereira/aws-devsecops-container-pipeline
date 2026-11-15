@@ -146,6 +146,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9.8"
+          terraform_wrapper: false
 
       - name: Verificar ou Provisionar Infraestrutura na AWS (Terraform)
         id: infra
@@ -169,6 +170,13 @@ jobs:
           if [ -z "${INSTANCE_ID}" ] || [ "${INSTANCE_ID}" = "None" ]; then
             echo "Nenhuma instancia ativa encontrada. Provisionando infraestrutura automaticamente via Terraform..."
             terraform -chdir=terraform init -input=false
+
+            # Importa recursos globais/regionais caso ja existam de execucoes anteriores
+            terraform -chdir=terraform import aws_ecr_repository.app "${ECR_REPOSITORY}" >/dev/null 2>&1 || true
+            terraform -chdir=terraform import aws_ecr_lifecycle_policy.keep_last_3 "${ECR_REPOSITORY}" >/dev/null 2>&1 || true
+            terraform -chdir=terraform import aws_iam_role.ec2_ssm_ecr_role "${ECR_REPOSITORY}-ec2-role" >/dev/null 2>&1 || true
+            terraform -chdir=terraform import aws_iam_instance_profile.ec2_profile "${ECR_REPOSITORY}-instance-profile" >/dev/null 2>&1 || true
+
             terraform -chdir=terraform apply -auto-approve -input=false
 
             INSTANCE_ID=$(terraform -chdir=terraform output -raw ec2_instance_id)
