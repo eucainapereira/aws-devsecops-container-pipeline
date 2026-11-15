@@ -13,3 +13,6 @@ AVD-AWS-0033
 AVD-AWS-0132
 # AVD-AWS-0178: VPC Flow Logs omitido para evitar custos de ingestao no CloudWatch (AWS Free Tier)
 AVD-AWS-0178
+# AVD-AWS-0009 / AVD-AWS-0130: IP publico necessario na instancia EC2 para servidor web publico HTTP (sem ALB pago)
+AVD-AWS-0009
+AVD-AWS-0130

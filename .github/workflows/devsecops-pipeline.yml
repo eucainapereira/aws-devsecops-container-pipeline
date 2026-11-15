@@ -175,6 +175,8 @@ jobs:
             terraform -chdir=terraform import aws_ecr_repository.app "${ECR_REPOSITORY}" >/dev/null 2>&1 || true
             terraform -chdir=terraform import aws_ecr_lifecycle_policy.keep_last_3 "${ECR_REPOSITORY}" >/dev/null 2>&1 || true
             terraform -chdir=terraform import aws_iam_role.ec2_ssm_ecr_role "${ECR_REPOSITORY}-ec2-role" >/dev/null 2>&1 || true
+            terraform -chdir=terraform import aws_iam_role_policy_attachment.ssm_core "${ECR_REPOSITORY}-ec2-role/arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore" >/dev/null 2>&1 || true
+            terraform -chdir=terraform import aws_iam_role_policy.ecr_read_only "${ECR_REPOSITORY}-ec2-role:${ECR_REPOSITORY}-ecr-pull-policy" >/dev/null 2>&1 || true
             terraform -chdir=terraform import aws_iam_instance_profile.ec2_profile "${ECR_REPOSITORY}-instance-profile" >/dev/null 2>&1 || true
 
             terraform -chdir=terraform apply -auto-approve -input=false

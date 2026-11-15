@@ -1,63 +1,9 @@
 # =============================================================================
-# 1. REDE E SEGURANCA (VPC Dedicada + Security Group Zero-SSH)
+# 1. REDE E SEGURANCA (VPC Padrao + Security Group Zero-SSH)
 # =============================================================================
 
-resource "aws_vpc" "main" {
-  cidr_block           = var.vpc_cidr
-  enable_dns_support   = true
-  enable_dns_hostnames = true
-
-  tags = {
-    Name = "${var.project_name}-vpc"
-  }
-}
-
-# Hardening: bloqueia todo trafego no Default Security Group da VPC (CIS AWS Benchmark)
-resource "aws_default_security_group" "default" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.project_name}-default-sg-restricted"
-  }
-}
-
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
-
-  tags = {
-    Name = "${var.project_name}-igw"
-  }
-}
-
-# Sub-rede com map_public_ip_on_launch = false (Boa pratica Trivy AVD-AWS-0164).
-# O IP publico e associado explicitamente via Elastic IP na instancia EC2.
-resource "aws_subnet" "public" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = var.public_subnet_cidr
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = false
-
-  tags = {
-    Name = "${var.project_name}-public-subnet"
-  }
-}
-
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-
-  tags = {
-    Name = "${var.project_name}-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
-  route_table_id = aws_route_table.public.id
+data "aws_vpc" "default" {
+  default = true
 }
 
 # Security Group restritivo:
@@ -67,7 +13,7 @@ resource "aws_route_table_association" "public" {
 resource "aws_security_group" "ec2_sg" {
   name        = "${var.project_name}-ec2-sg"
   description = "Security Group restritivo para o container web (HTTP 80 in, HTTPS 443 out, Zero SSH)"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.default.id
 
   # trivy:ignore:AVD-AWS-0107 Entrada publica na porta 80 necessaria para o servidor web publico e scan DAST
   ingress {
@@ -230,13 +176,13 @@ data "aws_ami" "amazon_linux_2023" {
 }
 
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public.id
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
-  monitoring             = true
-  ebs_optimized          = true
+  ami                         = data.aws_ami.amazon_linux_2023.id
+  instance_type               = var.instance_type
+  vpc_security_group_ids      = [aws_security_group.ec2_sg.id]
+  iam_instance_profile        = aws_iam_instance_profile.ec2_profile.name
+  associate_public_ip_address = true
+  monitoring                  = true
+  ebs_optimized               = true
 
   # Hardening: Exige IMDSv2 (session-oriented tokens) e limita hop_limit = 1
   # impedindo que containers consigam acessar metadados da instancia em caso de SSRF
@@ -261,18 +207,4 @@ resource "aws_instance" "app" {
   tags = {
     Name = "${var.project_name}-ec2"
   }
-}
-
-# Elastic IP associado a instancia EC2 (garante IP fixo e evita auto-assign na subnet)
-resource "aws_eip" "app_eip" {
-  domain = "vpc"
-
-  tags = {
-    Name = "${var.project_name}-eip"
-  }
-}
-
-resource "aws_eip_association" "app_eip_assoc" {
-  instance_id   = aws_instance.app.id
-  allocation_id = aws_eip.app_eip.id
 }
