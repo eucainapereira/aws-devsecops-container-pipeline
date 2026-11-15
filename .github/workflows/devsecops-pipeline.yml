@@ -20,7 +20,7 @@ permissions:
   id-token: write
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION || vars.AWS_REGION || 'us-east-1' }}
+  AWS_REGION: us-east-2
   ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY || vars.ECR_REPOSITORY || 'aws-devsecops-container-pipeline' }}
   CONTAINER_NAME: aws-devsecops-app
 

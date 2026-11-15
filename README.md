@@ -1,6 +1,6 @@
 # 🛡️ AWS DevSecOps Container Pipeline
 
-![AWS](https://img.shields.io/badge/AWS-us--east--1-FF9900?logo=amazonwebservices&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-us--east--2-FF9900?logo=amazonwebservices&logoColor=white)
 ![Terraform](https://img.shields.io/badge/IaC-Terraform-7B42BC?logo=terraform&logoColor=white)
 ![Docker](https://img.shields.io/badge/Container-Nginx%20Alpine%20(Non--Root)-2496ED?logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
@@ -29,7 +29,7 @@ flowchart TD
         G -->|Pass| H["📦 3c. Trivy Image<br/>Scan de CVEs da Imagem Alpine"]
     end
 
-    subgraph AWSCloud["3. AWS Cloud (us-east-1) - Deploy Zero-SSH"]
+    subgraph AWSCloud["3. AWS Cloud (us-east-2) - Deploy Zero-SSH"]
         H -->|Pass| I["Amazon ECR Privado<br/>Scan on Push + AES256 + Lifecycle (3 imgs)"]
         I --> J["AWS Systems Manager (SSM)<br/>aws ssm send-command (Sem Porta 22)"]
         J --> K["Instância EC2 t3.micro (AL2023)<br/>IMDSv2 Required + EBS GP3 Encrypted<br/>Container mapeado 80:8080"]
@@ -61,7 +61,7 @@ aws-devsecops-container-pipeline/
 │   └── .dockerignore                # Exclusão de artefatos de infraestrutura e metadados Git
 ├── terraform/
 │   ├── versions.tf                  # Versões do Terraform (>= 1.5) e provider AWS (~> 5.0)
-│   ├── variables.tf                 # Variáveis parametrizadas (região us-east-1, instância t3.micro, CIDR)
+│   ├── variables.tf                 # Variáveis parametrizadas (região us-east-2, instância t3.micro, CIDR)
 │   ├── main.tf                      # VPC, Security Group Zero-SSH, IAM Role (SSM+ECR), ECR e EC2 Hardened
 │   ├── user_data.sh                 # Script de bootstrap da EC2 (instalação e ativação do Docker + SSM)
 │   ├── outputs.tf                   # Outputs: IP público da EC2, URL do ECR e ID da instância
