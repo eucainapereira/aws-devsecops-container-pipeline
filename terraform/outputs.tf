@@ -1,6 +1,6 @@
 output "ec2_public_ip" {
-  description = "Endereco IP publico da instancia EC2 onde a aplicacao esta publicada"
-  value       = aws_instance.app.public_ip
+  description = "Endereco IP publico (Elastic IP) da instancia EC2 onde a aplicacao esta publicada"
+  value       = aws_eip.app_eip.public_ip
 }
 
 output "ecr_repository_url" {
@@ -15,5 +15,5 @@ output "ec2_instance_id" {
 
 output "application_url" {
   description = "URL HTTP da aplicacao em execucao"
-  value       = "http://${aws_instance.app.public_ip}"
+  value       = "http://${aws_eip.app_eip.public_ip}"
 }
