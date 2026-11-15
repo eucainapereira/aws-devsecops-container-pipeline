@@ -13,19 +13,15 @@ for i in {1..30}; do
   sleep 2
 done
 
+# Reinicia o agente SSM apos o Elastic IP estar associado para registro imediato no Systems Manager
+systemctl enable --now amazon-ssm-agent
+systemctl restart amazon-ssm-agent || true
+
 echo "[INFO] Iniciando bootstrap seguro da instancia Amazon Linux 2023..."
 
-# Atualiza pacotes do sistema operacional
-dnf update -y
-
-# Instala Docker Engine
+# Instala e habilita o Docker Engine
 dnf install -y docker
-
-# Habilita e inicia o servico do Docker
 systemctl enable --now docker
 usermod -aG docker ec2-user
-
-# Garante que o agente do AWS Systems Manager (SSM) esta ativo para deploy sem SSH
-systemctl enable --now amazon-ssm-agent
 
 echo "[INFO] Bootstrap concluido com sucesso. Docker e SSM Agent operacionais."

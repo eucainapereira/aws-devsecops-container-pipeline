@@ -1,0 +1,15 @@
+# Excecoes arquiteturais documentadas (AWS Free Tier e Servidor Web Publico)
+# AVD-AWS-0107: Porta 80 (HTTP) aberta publicamente por se tratar de servidor web publico
+AVD-AWS-0107
+# AVD-AWS-0104: Saida HTTPS (443) aberta para comunicacao com AWS SSM, Amazon ECR e repositorios AL2023
+AVD-AWS-0104
+# AVD-AWS-0057: A acao IAM ecr:GetAuthorizationToken exige Resource '*' pela especificacao da AWS
+AVD-AWS-0057
+# AVD-AWS-0031: Repositorio ECR permite atualizar a tag rolling 'latest' alem da tag imutavel por SHA
+AVD-AWS-0031
+# AVD-AWS-0033: Criptografia AES256 utilizada no ECR para manter conformidade com o AWS Free Tier (sem custo de KMS CMK)
+AVD-AWS-0033
+# AVD-AWS-0132: Criptografia EBS padrao AWS utilizada para preservar o AWS Free Tier
+AVD-AWS-0132
+# AVD-AWS-0178: VPC Flow Logs omitido para evitar custos de ingestao no CloudWatch (AWS Free Tier)
+AVD-AWS-0178

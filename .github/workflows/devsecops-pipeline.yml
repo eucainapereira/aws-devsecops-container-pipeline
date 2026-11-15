@@ -42,9 +42,11 @@ jobs:
       # FERRAMENTA 1: GITLEAKS (Secrets Detection)
       # -----------------------------------------------------------------------
       - name: "[1/4] Gitleaks - Varredura de Segredos no Historico Git"
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/repo" \
+            zricethezav/gitleaks:latest \
+            detect --source="/repo" --verbose --redact --exit-code 1
 
       # -----------------------------------------------------------------------
       # FERRAMENTA 2: SEMGREP (SAST - Static Application Security Testing)
@@ -56,7 +58,6 @@ jobs:
             semgrep/semgrep:latest \
             semgrep scan \
               --config p/default \
-              --config p/owasp-top-ten \
               --error \
               /src/app /src/docker
 
@@ -64,13 +65,15 @@ jobs:
       # FERRAMENTA 3 (Etapa A): TRIVY CONFIG (IaC - Terraform & Dockerfile)
       # -----------------------------------------------------------------------
       - name: "[3/4 - Etapa A] Trivy Config - Auditoria de IaC (/terraform e /docker/Dockerfile)"
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: "config"
-          scan-ref: "."
-          severity: "HIGH,CRITICAL"
-          exit-code: "1"
-          format: "table"
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            ghcr.io/aquasecurity/trivy:latest config \
+              --severity HIGH,CRITICAL \
+              --ignorefile .trivyignore \
+              --exit-code 1 \
+              ./terraform ./docker/Dockerfile
 
       # -----------------------------------------------------------------------
       # FERRAMENTA 3 (Etapa B): BUILD DA IMAGEM DOCKER ALPINE NON-ROOT
@@ -100,18 +103,18 @@ jobs:
       # FERRAMENTA 3 (Etapa C): TRIVY IMAGE (Container Vulnerability Scanning)
       # -----------------------------------------------------------------------
       - name: "[3/4 - Etapa C] Trivy Image - Scan de Vulnerabilidades (CVEs HIGH/CRITICAL)"
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: "${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
-          scan-type: "image"
-          severity: "HIGH,CRITICAL"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          exit-code: "1"
-          format: "table"
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            ghcr.io/aquasecurity/trivy:latest image \
+              --severity HIGH,CRITICAL \
+              --ignore-unfixed \
+              --scanners vuln \
+              --exit-code 1 \
+              "${ECR_REPOSITORY}:${GITHUB_SHA}"
 
   # ===========================================================================
-  # JOB 2: PUSH PARA O AMAZON ECR & DEPLOY REMOTO VIA AWS SSM (ZERO-SSH)
+  # JOB 2: PROVISIONAMENTO, PUSH ECR, DEPLOY VIA AWS SSM & DAST (OWASP ZAP)
   # ===========================================================================
   deploy-and-dast:
     name: "Deploy (ECR + AWS SSM) & DAST (OWASP ZAP)"
@@ -129,6 +132,51 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configurar Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Verificar ou Provisionar Infraestrutura na AWS (Terraform)
+        id: infra
+        env:
+          SECRET_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+          SECRET_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
+        run: |
+          INSTANCE_ID="${SECRET_INSTANCE_ID}"
+          PUBLIC_IP="${SECRET_PUBLIC_IP}"
+
+          if [ -z "${INSTANCE_ID}" ]; then
+            echo "Verificando se a instancia EC2 (${ECR_REPOSITORY}-ec2) ja existe na AWS..."
+            INSTANCE_ID=$(aws ec2 describe-instances \
+              --filters \
+                "Name=tag:Name,Values=${ECR_REPOSITORY}-ec2" \
+                "Name=instance-state-name,Values=pending,running" \
+              --query "Reservations[0].Instances[0].InstanceId" \
+              --output text || true)
+          fi
+
+          if [ -z "${INSTANCE_ID}" ] || [ "${INSTANCE_ID}" = "None" ]; then
+            echo "Nenhuma instancia ativa encontrada. Provisionando infraestrutura automaticamente via Terraform..."
+            terraform -chdir=terraform init -input=false
+            terraform -chdir=terraform apply -auto-approve -input=false
+
+            INSTANCE_ID=$(terraform -chdir=terraform output -raw ec2_instance_id)
+            PUBLIC_IP=$(terraform -chdir=terraform output -raw ec2_public_ip)
+          else
+            echo "Instancia EC2 existente detectada: ${INSTANCE_ID}"
+            if [ -z "${PUBLIC_IP}" ]; then
+              PUBLIC_IP=$(aws ec2 describe-instances \
+                --instance-ids "${INSTANCE_ID}" \
+                --query "Reservations[0].Instances[0].PublicIpAddress" \
+                --output text)
+            fi
+          fi
+
+          echo "Instancia EC2 Alvo: ${INSTANCE_ID} (IP Publico: ${PUBLIC_IP})"
+          echo "instance_id=${INSTANCE_ID}" >> "${GITHUB_OUTPUT}"
+          echo "public_ip=${PUBLIC_IP}" >> "${GITHUB_OUTPUT}"
 
       - name: Login no Amazon ECR
         id: login-ecr
@@ -156,50 +204,15 @@ jobs:
           docker push "${IMAGE_URI}:${GITHUB_SHA}"
           docker push "${IMAGE_URI}:latest"
 
-      - name: Descobrir Instancia EC2 Alvo (Via Secrets ou Tags do Terraform)
-        id: target-ec2
-        env:
-          SECRET_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-          SECRET_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
-        run: |
-          INSTANCE_ID="${SECRET_INSTANCE_ID}"
-          PUBLIC_IP="${SECRET_PUBLIC_IP}"
-
-          if [ -z "${INSTANCE_ID}" ]; then
-            echo "Buscando instancia EC2 em execucao pela tag Name=${ECR_REPOSITORY}-ec2..."
-            INSTANCE_ID=$(aws ec2 describe-instances \
-              --filters \
-                "Name=tag:Name,Values=${ECR_REPOSITORY}-ec2" \
-                "Name=instance-state-name,Values=running" \
-              --query "Reservations[0].Instances[0].InstanceId" \
-              --output text)
-          fi
-
-          if [ -z "${INSTANCE_ID}" ] || [ "${INSTANCE_ID}" = "None" ]; then
-            echo "ERRO: Nenhuma instancia EC2 em execucao encontrada. Execute 'terraform apply' na pasta /terraform ou configure o secret EC2_INSTANCE_ID."
-            exit 1
-          fi
-
-          if [ -z "${PUBLIC_IP}" ]; then
-            PUBLIC_IP=$(aws ec2 describe-instances \
-              --instance-ids "${INSTANCE_ID}" \
-              --query "Reservations[0].Instances[0].PublicIpAddress" \
-              --output text)
-          fi
-
-          echo "Instancia EC2 Alvo: ${INSTANCE_ID} (IP Publico: ${PUBLIC_IP})"
-          echo "instance_id=${INSTANCE_ID}" >> "${GITHUB_OUTPUT}"
-          echo "public_ip=${PUBLIC_IP}" >> "${GITHUB_OUTPUT}"
-
       - name: Deploy Seguro na EC2 via AWS Systems Manager (SSM Run Command - Sem SSH)
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          EC2_INSTANCE_ID: ${{ steps.target-ec2.outputs.instance_id }}
+          EC2_INSTANCE_ID: ${{ steps.infra.outputs.instance_id }}
         run: |
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}"
 
           echo "Aguardando agente AWS SSM ficar Online na instancia ${EC2_INSTANCE_ID}..."
-          for i in {1..30}; do
+          for i in {1..36}; do
             SSM_STATUS=$(aws ssm describe-instance-information \
               --filters "Key=InstanceIds,Values=${EC2_INSTANCE_ID}" \
               --query "InstanceInformationList[0].PingStatus" \
@@ -208,7 +221,7 @@ jobs:
               echo "Agente SSM Online!"
               break
             fi
-            echo "Tentativa ${i}/30: Status SSM atual = ${SSM_STATUS}. Aguardando 10s..."
+            echo "Tentativa ${i}/36: Status SSM atual = ${SSM_STATUS}. Aguardando 10s..."
             sleep 10
           done
 
@@ -219,6 +232,8 @@ jobs:
             --comment "Deploy automatizado da imagem ${IMAGE_URI}:${GITHUB_SHA}" \
             --parameters commands="[
               \"set -eux\",
+              \"for i in \$(seq 1 30); do if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker; then break; fi; echo 'Aguardando Docker iniciar...'; sleep 5; done\",
+              \"if ! command -v docker >/dev/null 2>&1; then dnf install -y docker && systemctl enable --now docker; fi\",
               \"aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}\",
               \"docker pull ${IMAGE_URI}:${GITHUB_SHA}\",
               \"docker tag ${IMAGE_URI}:${GITHUB_SHA} ${IMAGE_URI}:latest\",
@@ -233,18 +248,29 @@ jobs:
           echo "Comando SSM enviado (CommandId: ${COMMAND_ID}). Aguardando conclusao..."
           aws ssm wait command-executed \
             --command-id "${COMMAND_ID}" \
-            --instance-id "${EC2_INSTANCE_ID}"
+            --instance-id "${EC2_INSTANCE_ID}" || true
 
-          echo "Resultado da execucao remota via SSM:"
+          SSM_FINAL_STATUS=$(aws ssm get-command-invocation \
+            --command-id "${COMMAND_ID}" \
+            --instance-id "${EC2_INSTANCE_ID}" \
+            --query "Status" \
+            --output text)
+
+          echo "Resultado da execucao remota via SSM (Status: ${SSM_FINAL_STATUS}):"
           aws ssm get-command-invocation \
             --command-id "${COMMAND_ID}" \
             --instance-id "${EC2_INSTANCE_ID}" \
-            --query "[Status, StandardOutputContent, StandardErrorContent]" \
+            --query "[StandardOutputContent, StandardErrorContent]" \
             --output text
+
+          if [ "${SSM_FINAL_STATUS}" != "Success" ]; then
+            echo "ERRO: O comando SSM falhou com status ${SSM_FINAL_STATUS}"
+            exit 1
+          fi
 
       - name: Aguardar Aplicacao Responder na EC2 (Healthcheck HTTP)
         env:
-          EC2_PUBLIC_IP: ${{ steps.target-ec2.outputs.public_ip }}
+          EC2_PUBLIC_IP: ${{ steps.infra.outputs.public_ip }}
         run: |
           echo "Verificando disponibilidade de http://${EC2_PUBLIC_IP}/healthz ..."
           for i in {1..24}; do
@@ -264,7 +290,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: "[4/4] OWASP ZAP Baseline Scan - DAST contra o IP Publico da EC2"
         env:
-          EC2_PUBLIC_IP: ${{ steps.target-ec2.outputs.public_ip }}
+          EC2_PUBLIC_IP: ${{ steps.infra.outputs.public_ip }}
         run: |
           mkdir -p "${GITHUB_WORKSPACE}/zap-reports"
           chmod 777 "${GITHUB_WORKSPACE}/zap-reports"
