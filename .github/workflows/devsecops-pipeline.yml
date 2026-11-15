@@ -248,7 +248,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${EC2_INSTANCE_ID}" \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy automatizado da imagem ${IMAGE_URI}:${GITHUB_SHA}" \
+            --comment "Deploy automatizado via GitHub Actions" \
             --parameters commands="[
               \"set -eux\",
               \"for i in \$(seq 1 30); do if command -v docker >/dev/null 2>&1 && systemctl is-active --quiet docker; then break; fi; echo 'Aguardando Docker iniciar...'; sleep 5; done\",
