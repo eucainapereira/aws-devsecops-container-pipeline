@@ -22,7 +22,8 @@
       description:
         "Executa primeiro 'trivy config' para auditar o Terraform e o Dockerfile contra más configurações cloud/container, constrói a imagem Alpine non-root e executa 'trivy image' para barrar CVEs críticas/altas.",
       command:
-        "trivy config --severity HIGH,CRITICAL --exit-code 1 ./terraform ./docker/Dockerfile && \\\n" +
+        "trivy config --severity HIGH,CRITICAL --exit-code 1 ./terraform && \\\n" +
+        "trivy config --severity HIGH,CRITICAL --exit-code 1 ./docker && \\\n" +
         "docker build -t aws-devsecops-app:latest -f docker/Dockerfile . && \\\n" +
         "trivy image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 aws-devsecops-app:latest"
     },

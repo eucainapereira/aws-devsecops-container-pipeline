@@ -73,7 +73,16 @@ jobs:
               --severity HIGH,CRITICAL \
               --ignorefile .trivyignore \
               --exit-code 1 \
-              ./terraform ./docker/Dockerfile
+              ./terraform
+
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}:/work" \
+            -w /work \
+            ghcr.io/aquasecurity/trivy:latest config \
+              --severity HIGH,CRITICAL \
+              --ignorefile .trivyignore \
+              --exit-code 1 \
+              ./docker
 
       # -----------------------------------------------------------------------
       # FERRAMENTA 3 (Etapa B): BUILD DA IMAGEM DOCKER ALPINE NON-ROOT
